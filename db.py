@@ -1,8 +1,10 @@
 import sqlite3
 import bcrypt
 
+DB_PATH = "users.db"
+
 def init_db():
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     # Users table
     c.execute("""
@@ -40,7 +42,7 @@ def init_db():
     conn.close()
 
 def add_user(username, email, password):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
     c.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", 
@@ -49,7 +51,7 @@ def add_user(username, email, password):
     conn.close()
 
 def get_user(email):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT username, email, password FROM users WHERE email=?", (email,))
     row = c.fetchone()
@@ -59,17 +61,17 @@ def get_user(email):
     return None
 
 def log_activity(user_email, recipe_id, recipe_name, image_url, action):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
         INSERT INTO user_activity (user_email, recipe_id, recipe_name, image_url, action)
         VALUES (?, ?, ?, ?, ?)
-    """, (user_email, recipe_id, recipe_name, image_url, action))
+    """, (user_email, recipe_id or "", recipe_name, image_url, action))
     conn.commit()
     conn.close()
 
 def get_user_activity(user_email):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT recipe_id, recipe_name, image_url, action, timestamp FROM user_activity WHERE user_email=?", (user_email,))
     rows = c.fetchall()
@@ -77,22 +79,26 @@ def get_user_activity(user_email):
     return rows
 
 def add_feedback(user_email, recipe_id, recipe_name, rating):
-    conn = sqlite3.connect("users.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO feedback (user_email, recipe_id, recipe_name, rating)
-        VALUES (?, ?, ?, ?)
-    """, (user_email, recipe_id, recipe_name, rating))
-    conn.commit()
-    conn.close()
+    try:
+        c.execute("""
+            INSERT INTO feedback (user_email, recipe_id, recipe_name, rating)
+            VALUES (?, ?, ?, ?)
+        """, (user_email, str(recipe_id), recipe_name, int(rating)))
+        conn.commit()
+    except Exception as e:
+        print("Feedback insert error:", e)
+    finally:
+        conn.close()
 
-def get_feedback(recipe_id="*"):
-    conn = sqlite3.connect("users.db")
+def get_feedback(recipe_id=None):
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    if recipe_id == "*":
+    if recipe_id is None:
         c.execute("SELECT user_email, recipe_name, rating, timestamp FROM feedback")
     else:
-        c.execute("SELECT user_email, recipe_name, rating, timestamp FROM feedback WHERE recipe_id=?", (recipe_id,))
+        c.execute("SELECT user_email, recipe_name, rating, timestamp FROM feedback WHERE recipe_id=?", (str(recipe_id),))
     rows = c.fetchall()
     conn.close()
     return rows
